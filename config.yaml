@@ -1,0 +1,44 @@
+# ClipHanger settings. Every tunable lives here; command-line flags override.
+
+model:
+  # "provider/model". Providers: gemini, groq, openrouter, openai, ollama, anthropic, custom.
+  # Swap models by editing one line here, or pass --model / --judge-model on the command line.
+  # `python -m cliphanger models --probe` shows which models your key can use right now.
+  generator: gemini/gemini-3.6-flash          # mines + stitches promos (needs the strongest reader)
+  # Fallbacks in order of observed reliability on the free tier (2026-11-05). 3.8-flash often times
+  # out, so it's last; it stays in the chain so its cached replies keep being reused.
+  generator_fallbacks: [gemini/gemini-3-flash-preview, gemini/gemini-3.1-flash-lite, gemini/gemini-3.8-flash]
+  judge: gemini/gemini-3.1-flash-lite         # a DIFFERENT model scores promos: less self-grading bias
+  judge_fallbacks: [gemini/gemini-3.5-flash-lite, gemini/gemini-flash-lite-latest]
+  generator_reasoning: medium                 # thinking effort (Gemini/OpenAI reasoning models only)
+  judge_reasoning: low
+  timeout_seconds: 150
+  requests_per_minute: 10   # per model; free tiers enforce per-minute limits (raise on paid tiers)
+
+promo:
+  min_seconds: 20
+  max_seconds: 60
+  sweet_spot: [25, 45]      # TikTok/Reels-friendly length
+  hook_within_seconds: 3    # the hook must land in the first 3 s (brief)
+  max_segments: 3
+
+budget:                     # free tiers allow few requests per day → batch work into few calls
+  episodes_per_call: 5
+  promos_per_judge_call: 8
+  judge_rounds: 3           # one judging pass is noisy (measured): average 3 shuffled rounds
+
+candidates:
+  episode_endings: true     # also judge a code-only promo per episode that ends on the episode's own
+                            # cliffhanger (evaluation: endings beat LLM picks on cliffhanger strength)
+
+ranking:
+  weights:                  # each sub-score is 0–10; weights sum to 1
+    hook: 0.30              # 3-second scroll test
+    cliffhanger: 0.25       # cold viewer: "I need to know what happens next"
+    clarity: 0.20           # cold viewer: makes sense with no context
+    comprehension: 0.10     # cold viewer's understanding matches the true logline
+    length: 0.05            # 25–45 s sweet spot
+    early_episode: 0.10     # a new viewer starts at E1 (assumption A6)
+  resolved_penalty: 2.0     # the clip already answers its own question
+  duplicate_overlap: 0.4    # share of the same footage above which two promos are duplicates
+  slate_size: 5             # "post first": the best promo from each of the top story angles

@@ -1,0 +1,10 @@
+# Pinned to the versions the project was built and tested with (2026-11-05).
+openai==3.46.0          # one client for every OpenAI-compatible API (Gemini, Groq, OpenRouter, Ollama, Kuku's gateway)
+anthropic==2.5.0        # optional: native Claude adapter
+python-dotenv==1.2.4
+PyYAML==6.0.3
+pydantic==2.14.3
+streamlit==1.66.1
+altair==6.3.0
+pandas==3.1.1
+pytest==9.2.0

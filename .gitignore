@@ -1,0 +1,20 @@
+# secrets
+.env
+.streamlit/secrets.toml
+
+# Kuku's scripts are confidential: never commit the input pack or anything derived from it
+*.zip
+data/
+outputs/
+.cache/
+# working notes quote the show; they feed the (private) solution doc
+NOTES.md
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# os
+.DS_Store
