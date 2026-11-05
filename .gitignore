@@ -4,6 +4,8 @@
 
 # Kuku's scripts are confidential: never commit the input pack or anything derived from it
 *.zip
+# the one exception: an original demo show with no real content
+!samples/demo_show.zip
 data/
 outputs/
 .cache/
