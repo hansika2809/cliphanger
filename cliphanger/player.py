@@ -14,7 +14,7 @@ _TEMPLATE = r"""
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   .phone { position: relative; width: 244px; height: 434px; border-radius: 24px; background: #0e0e11;
            overflow: hidden; border: 3px solid #2a2a31; box-shadow: 0 6px 22px rgba(0,0,0,.28); }
-  .shot { position: absolute; top: 16px; left: 14px; right: 58px; color: #a0a6b0; font-size: 11px;
+  .shot { position: absolute; top: 38px; left: 14px; right: 14px; color: #a0a6b0; font-size: 11px;
           font-style: italic; line-height: 1.35; }
   .sfx { position: absolute; top: 31%; left: 16px; right: 16px; color: #f2c14e; font-size: 11px; text-align: center; }
   .act { position: absolute; top: 41%; left: 16px; right: 16px; color: #ececef; font-size: 13px;
@@ -22,9 +22,9 @@ _TEMPLATE = r"""
   .cap { position: absolute; bottom: 62px; left: 12px; right: 12px; text-align: center; }
   .who { display: block; color: #ffd166; font-size: 10px; letter-spacing: .07em; font-weight: 700; margin-bottom: 3px; }
   .line { color: #fff; font-size: 16px; font-weight: 750; line-height: 1.28; text-shadow: 0 1px 3px #000; }
-  .hook { position: absolute; top: 12px; right: 10px; background: #e34948; color: #fff; font-size: 9.5px;
+  .hook { position: absolute; top: 12px; left: 10px; background: #e34948; color: #fff; font-size: 9.5px;
           font-weight: 800; padding: 3px 7px; border-radius: 10px; letter-spacing: .04em; }
-  .ep { position: absolute; top: 34px; right: 10px; color: #8ecae6; font-size: 9.5px; font-weight: 700; }
+  .ep { position: absolute; top: 15px; right: 12px; color: #8ecae6; font-size: 9.5px; font-weight: 700; }
   .t { position: absolute; left: 12px; bottom: 30px; color: #a0a6b0; font-size: 10.5px; }
   .bar { position: absolute; left: 12px; right: 12px; bottom: 18px; height: 6px; background: #2e2e36;
          border-radius: 3px; cursor: pointer; }
