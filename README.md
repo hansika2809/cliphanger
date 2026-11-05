@@ -113,6 +113,23 @@ script) · `candidates_all.json` (incl. rejected ideas and why) · `raw_llm_repl
 .venv/bin/python -m pytest -q    # synthetic fixtures; the real-pack test runs only if the pack is present
 ```
 
+## Who did what
+
+| Hansika Gupta (human) | AI |
+|---|---|
+| **Chose the problem and the process:** picked Problem 1 and had it built plan-first, then step by step with a review checkpoint after each stage | **Claude Code (Claude Opus 5.5)** proposed the plan and design, wrote the code, prompts and tests, ran the experiments and evaluation, and drafted the solution doc and this README |
+| **Set the quality bar** (a creative, shortlist-worthy solution, not a minimal one) and **made the delivery decisions**: GitHub account, submission format, what the doc must and must not include | **Gemini models** do the judgement inside the pipeline: finding promos and judging them as simulated viewers |
+| **Steered revisions** to the solution doc's readability and layout, the app's UI and this repo; set up the API key and published the code | Every number in the docs comes from logged runs, so each claim can be checked against the raw outputs |
+
+## Models used
+
+| Where | Model | Role |
+|---|---|---|
+| Development | Claude Opus 5.5 (Claude Code), with web search | planning, code, tests, analysis, docs; checked Gemini's free-tier limits and prices |
+| Pipeline: generator | Gemini 3.6 Flash (default), Gemini 3 Flash Preview (final run), Gemini 3.8 Flash (fallback) | mines promo ideas per episode, stitches cross-episode trailers |
+| Pipeline: judge | Gemini 3.1 Flash-Lite (default), Gemini 3.5 Flash-Lite (fallback) | 3-second scroll test, cold-viewer test, comprehension check |
+| Probed, not used | Gemma 4 31B, Gemini 4 Argon, Gemini Pro | tested for free-tier availability (slow, or no free quota) |
+
 ## Confidentiality
 
 Show scripts are confidential. This repo holds code and synthetic test fixtures only; input packs,
