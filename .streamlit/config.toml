@@ -1,0 +1,23 @@
+# ClipHanger's "screening room" look: dark, warm coral accent, serif headings like a title card.
+[theme]
+base = "dark"
+primaryColor = "#ff6b4a"
+backgroundColor = "#0e0e12"
+secondaryBackgroundColor = "#17171d"
+textColor = "#ececf1"
+linkColor = "#ffb199"
+borderColor = "#2a2a33"
+font = "sans-serif"
+headingFont = "serif"
+baseRadius = "0.6rem"
+showWidgetBorder = true
+
+[theme.sidebar]
+backgroundColor = "#121217"
+secondaryBackgroundColor = "#1b1b22"
+
+[server]
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false

@@ -1,6 +1,6 @@
 """ClipHanger · upload microdrama screenplays → ranked promos you can play, review and export.
 
-Run locally:  .venv/bin/streamlit run app.py
+Run locally:  .venv/bin/streamlit run app.py        Open a saved run directly:  ?run=<folder in outputs/>
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from cliphanger import pipeline
+from cliphanger import pipeline, ui
 from cliphanger.config import load_config
 from cliphanger.heat import heat_curve
 from cliphanger.llm import PROVIDERS, LLMError, split_spec
@@ -34,6 +34,12 @@ except Exception:
 
 cfg = load_config()
 ss = st.session_state
+THEME = st.get_option("theme.base") or getattr(getattr(st.context, "theme", None), "type", None) or "dark"
+st.html(ui.css(THEME))
+
+DECISIONS = ["👍 Approve", "🤔 Maybe", "👎 Reject"]
+SOURCES = {"LLM picks": "mine", "Trailers": "stitch", "Episode endings": "heuristic"}
+decisions: dict[str, str | None] = ss.setdefault("decisions", {})
 
 
 def episode_list(spec: str) -> list[int] | None:
@@ -51,45 +57,64 @@ def cached_show(path: str):
     return load_show(path)
 
 
+def saved_runs() -> list[Path]:
+    return sorted((ROOT / "outputs").glob("*/promos.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def open_run(run_dir: Path) -> None:
+    packs = sorted(ROOT.parent.glob("*.zip"))
+    ss.update(records=json.loads((run_dir / "promos.json").read_text()), run_dir=str(run_dir),
+              picked=run_dir.name, show_path=str(packs[0]) if packs else None)
+
+
+# ── deep link: ?run=final_run ──────────────────────────────────────────────────
+wanted = st.query_params.get("run")
+if wanted and ss.get("picked") != wanted and (ROOT / "outputs" / wanted / "promos.json").exists():
+    open_run(ROOT / "outputs" / wanted)
+
 # ── sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.title("🎬 ClipHanger")
-    st.caption("Finds promo clips in microdrama screenplays: a hook in 3 seconds, a cliffhanger at the cut.")
+    st.markdown("## 🎬 ClipHanger")
+    st.caption("Promo finder for microdrama screenplays")
 
-    st.subheader("1 · Screenplays")
-    upload = st.file_uploader("Upload a .zip of episode scripts", type=["zip"])
+    st.markdown("##### Open results")
+    runs = saved_runs()
+    pick = "—"
+    if runs:
+        names = ["—"] + [p.parent.name for p in runs]
+        current = ss.get("picked")
+        pick = st.selectbox("Saved runs on this machine", names, index=names.index(current) if current in names else 0)
+    prev = st.file_uploader("…or a promos.json from any run", type=["json"])
+
+    st.divider()
+    st.markdown("##### Find promos in a new show")
+    upload = st.file_uploader("Episode screenplays (.zip)", type=["zip"])
     local_packs = sorted(ROOT.parent.glob("*.zip"))
     local_choice = None
     if not upload and local_packs:
         local_choice = st.selectbox("…or a pack on this machine", ["—"] + [p.name for p in local_packs])
-
-    st.subheader("2 · Models")
-    gen = st.text_input("Generator (finds promos)", cfg["model"]["generator"],
-                        help="provider/model: gemini, groq, openrouter, openai, ollama, anthropic or custom")
-    jud = st.text_input("Judge (simulated viewers)", cfg["model"]["judge"],
-                        help="Use a different model from the generator for a more independent check")
-    key = st.text_input("API key (optional, this session only)", type="password",
-                        help="Overrides the server's key for the providers above")
-    base_url = st.text_input("Custom OpenAI-compatible base URL", "",
-                             help="For provider 'custom', e.g. your company's model gateway")
-
-    st.subheader("3 · Scope")
     eps = st.text_input("Episodes", "all", help='"all", "1-10" or "1,13,42"')
     trailers = st.slider("Cross-episode trailers", 0, 8, 5)
-    go = st.button("Find promos", type="primary", width="stretch")
+    with st.expander("Model settings"):
+        gen = st.text_input("Generator (finds promos)", cfg["model"]["generator"],
+                            help="provider/model: gemini, groq, openrouter, openai, ollama, anthropic or custom")
+        jud = st.text_input("Judge (simulated viewers)", cfg["model"]["judge"],
+                            help="A different model from the generator gives a more independent check")
+        key = st.text_input("API key (this session only)", type="password")
+        base_url = st.text_input("Custom OpenAI-compatible base URL", "", help="For provider 'custom'")
+    go = st.button("🎬  Find promos", type="primary", width="stretch")
 
-    st.divider()
-    st.subheader("…or open a finished run")
-    runs = sorted((ROOT / "outputs").glob("*/promos.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-    pick = st.selectbox("Saved runs on this machine", ["—"] + [p.parent.name for p in runs]) if runs else "—"
-    prev = st.file_uploader("promos.json from a run", type=["json"])
+    if decisions:
+        counts = {d: sum(v == d for v in decisions.values()) for d in DECISIONS}
+        st.divider()
+        st.markdown("##### Your decisions")
+        st.caption(" · ".join(f"{d} {n}" for d, n in counts.items()))
 
 # ── actions ────────────────────────────────────────────────────────────────────
 if go:
     if upload:
-        tmp = Path(tempfile.mkdtemp()) / upload.name
-        tmp.write_bytes(upload.getvalue())
-        src = tmp
+        src = Path(tempfile.mkdtemp()) / upload.name
+        src.write_bytes(upload.getvalue())
     elif local_choice and local_choice != "—":
         src = ROOT.parent / local_choice
     else:
@@ -97,7 +122,7 @@ if go:
         st.stop()
     for spec in {gen, jud}:
         try:
-            env = PROVIDERS[split_spec(spec)[0]].get("key_env")
+            env = PROVIDERS[split_spec(spec.split(",")[0].strip())[0]].get("key_env")
         except LLMError as err:
             st.sidebar.error(str(err))
             st.stop()
@@ -106,113 +131,130 @@ if go:
     if base_url:
         os.environ["CLIPHANGER_BASE_URL"] = base_url
     out = ROOT / "outputs" / f"run_app_{time.strftime('%Y%m%d_%H%M%S')}"
-    with st.status("Finding promos… (a full 50-episode show takes a few minutes on free tiers)", expanded=True) as status:
+    with st.status("Finding promos… a 50-episode show takes 10–20 minutes on free tiers", expanded=True) as status:
         try:
-            records = pipeline.run(src, out, cfg, generator=gen, judge_model=jud, episodes=episode_list(eps),
-                                   stitch_n=trailers, progress=status.write)
+            pipeline.run(src, out, cfg, generator=gen, judge_model=jud, episodes=episode_list(eps),
+                         stitch_n=trailers, progress=status.write)
         except LLMError as err:
             status.update(label="The model provider refused or failed", state="error")
-            st.error(f"{err}\n\nCheck the API key and the provider's quota, or switch models in the sidebar.")
+            st.error(f"{err}\n\nCheck the API key and the provider's quota, or switch models in Model settings.")
             st.stop()
         status.update(label="Done", state="complete", expanded=False)
-    ss.update(records=records, run_dir=str(out), show_path=str(src))
+    open_run(out)
+    ss["show_path"] = str(src)
 elif prev is not None:
-    ss.update(records=json.loads(prev.getvalue()), run_dir=None, show_path=None)
+    ss.update(records=json.loads(prev.getvalue()), run_dir=None, show_path=None, picked=None)
 elif pick != "—" and ss.get("picked") != pick:
-    run_dir = ROOT / "outputs" / pick
-    ss.update(records=json.loads((run_dir / "promos.json").read_text()), run_dir=str(run_dir), picked=pick,
-              show_path=str(local_packs[0]) if local_packs else None)
+    open_run(ROOT / "outputs" / pick)
 
 records: list[dict] | None = ss.get("records")
 
+# ── landing ────────────────────────────────────────────────────────────────────
 if not records:
-    st.title("Find the promos hiding in your episodes")
-    st.markdown(
-        "Upload a show's screenplays and ClipHanger returns **ranked 20–60 s promos**: exact segment "
-        "timestamps, the hook, the cliffhanger and why each one works. Then **play each promo as a "
-        "timed read-along** before anyone opens an editing timeline.\n\n"
-        "1. **Parse** every scene, line and shot with its timestamp (code)\n"
-        "2. **Mine** hooks, cliffhangers and promo ideas, citing moments by ID only (LLM)\n"
-        "3. **Validate & snap** cuts onto shot changes; hook ≤ 3 s; end on the cliffhanger (code)\n"
-        "4. **Stitch** cross-episode trailers (LLM)\n"
-        "5. **Judge** with simulated viewers: a 3-second scroll test and a cold viewer who has never seen the show (LLM)\n"
-        "6. **Rank** with a transparent score and build a *post first* slate, one promo per story angle (code)")
+    st.html(ui.landing())
+    st.space("small")
+    if runs:
+        if st.button(f"▶  Open the latest saved run ({runs[0].parent.name})", type="primary"):
+            open_run(runs[0].parent)
+            st.rerun()
+    else:
+        st.info("Upload a .zip of episode screenplays in the sidebar to begin.", icon="🎬")
     st.stop()
 
+# ── results ────────────────────────────────────────────────────────────────────
 meta = None
 if ss.get("run_dir") and (Path(ss["run_dir"]) / "run.json").exists():
     meta = json.loads((Path(ss["run_dir"]) / "run.json").read_text())
 
 ranked = [r for r in records if r.get("rank")]
-st.title(meta["show"] if meta else "Promo run")
-m = st.columns(5)
-m[0].metric("Promos ranked", len(ranked))
-m[1].metric("Post-first slate", sum(r["post_first"] for r in ranked))
+slate = [r for r in ranked if r.get("post_first")]
+approved = sum(v == DECISIONS[0] for v in decisions.values())
+
 if meta:
     c = meta["counts"]
-    m[2].metric("Ideas → valid", f"{c['ideas'] - c['rejected']}/{c['ideas']}", help=f"{c['repaired']} repaired by the cut snapper")
-    m[3].metric("Model requests", meta["live_requests"], help=f"{meta['cache_hits']} answered from cache")
-    m[4].metric("Tokens in / out", f"{meta['tokens_in'] // 1000}K / {meta['tokens_out'] // 1000}K")
+    sub = (f"{meta['episodes']} episodes · generator {meta['generator']} · judge {meta['judge']} · "
+           f"run {meta['finished']}")
+    tiles = [(str(len(ranked)), "distinct promos ranked"),
+             (f"{c['ideas'] - c['rejected']}/{c['ideas']}", "candidates passed the code checks"),
+             (str(c["repaired"]), "cuts repaired by the snapper"),
+             (str(meta["live_requests"] + meta["cache_hits"]), "model calls (cached replies reused)"),
+             (str(approved), "promos you approved")]
+else:
+    sub = "Loaded from a promos.json file"
+    tiles = [(str(len(ranked)), "distinct promos ranked"), (str(len(slate)), "in the post-first slate"),
+             (f"{sum(r['duration'] for r in ranked) / max(1, len(ranked)):.0f} s", "average promo length"),
+             (f"{max((r['scores']['final'] for r in ranked), default=0):.1f}", "top score"),
+             (str(approved), "promos you approved")]
+st.html(ui.hero("Promo report", meta["show"] if meta else "Promo run", sub) + ui.kpis(tiles))
 
-decisions: dict[str, str] = ss.setdefault("decisions", {})
+
+def _sync(rid: str, where: str) -> None:
+    value = ss.get(f"dec-{where}-{rid}")
+    decisions[rid] = value
+    for other in ("first", "all"):
+        ss[f"dec-{other}-{rid}"] = value
 
 
 def promo_card(r: dict, where: str) -> None:
-    left, right = st.columns([1, 1.35], gap="large")
+    left, right = st.columns([1, 1.55], gap="large")
     with left:
         # data: URL → the player runs in its own opaque origin, isolated from the app
-        st.iframe("data:text/html;base64," + base64.b64encode(player_html(r).encode()).decode(), height=500)
+        st.iframe("data:text/html;charset=utf-8;base64," + base64.b64encode(player_html(r).encode()).decode(), height=500)
     with right:
-        star = " ⭐" if r["post_first"] else ""
-        st.markdown(f"#### #{r['rank']} · {r['title']}{star}")
-        st.caption(f"{r['angle']} · {r['duration']:.1f} s · final score {r['scores']['final']:.1f}/10 · {r['source']}")
-        seg_rows = [f"`E{s['episode']:02d}  {s['start']} → {s['end']}`  ({s['seconds']:.1f} s)" for s in r["segments"]]
-        st.markdown("**Segments, in play order**  \n" + "  \n".join(seg_rows))
-        st.markdown(f"**Hook** ({r['hook']['at_seconds']:.1f} s in): {r['hook']['script_line']}")
-        if r["hook"].get("scroll_test"):
-            st.caption(f"3-second test: {r['hook']['scroll_test']}")
-        st.markdown(f"**Cliffhanger:** {r['cliffhanger']['script_line']}")
-        st.markdown(f"**Leaves them asking:** {r['cliffhanger']['open_question']}")
-        st.markdown(f"**Why it works:** {r['why_it_works']}")
-        s = r["scores"]
-        st.caption(f"hook {s['hook']:.0f} · cliffhanger {s['cliffhanger']:.0f} · clarity {s['clarity']:.0f} · "
-                   f"comprehension {s['comprehension']:.0f} · length {s['length']:.0f} · early-episode {s['early_episode']:.0f}")
+        st.html(ui.card_head(r)
+                + ui.quote(f"Hook · {r['hook']['at_seconds']:.1f} s in", r["hook"]["script_line"])
+                + ui.quote("Cliffhanger · the cut", r["cliffhanger"]["script_line"], "cut")
+                + ui.quote("Leaves them asking", r["cliffhanger"].get("open_question") or "What happens next?", "plain")
+                + ui.quote("Why it works", r.get("why_it_works") or "", "plain"))
+        st.html(ui.scores(r) + ui.flags(r))
         if r.get("cold_viewer_understood"):
-            st.caption(f"A cold viewer understood: “{r['cold_viewer_understood']}”")
-        for f in r["flags"]:
-            st.warning(f, icon="⚠️")
-        if r["repairs"]:
-            st.caption("✂ Cut repairs: " + "; ".join(r["repairs"]))
-        choice = st.radio("Editor decision", ["undecided", "approve", "reject"], horizontal=True,
-                          key=f"dec-{where}-{r['id']}", index=["undecided", "approve", "reject"].index(decisions.get(r["id"], "undecided")))
-        decisions[r["id"]] = choice
+            st.caption(f"🧑‍💻 A cold viewer understood: “{r['cold_viewer_understood']}”")
+        k = f"dec-{where}-{r['id']}"
+        if k not in ss:
+            ss[k] = decisions.get(r["id"])
+        st.segmented_control("Editor decision", DECISIONS, key=k, on_change=_sync, args=(r["id"], where))
 
 
-tab_first, tab_all, tab_heat, tab_table = st.tabs(["⭐ Post first", "All promos", "Drama heat-map", "Table & export"])
+tab_first, tab_all, tab_heat, tab_table, tab_how = st.tabs(
+    ["⭐ Post first", "🎞️ All promos", "🔥 Drama heat-map", "📋 Table & export", "ℹ️ How it works"])
 
 with tab_first:
-    st.markdown("The best promo from each **story angle**. Post these first as an A/B test of which angle "
-                "sells this show, then cut more promos like the winner.")
-    for r in [r for r in ranked if r["post_first"]]:
+    st.markdown("#### The best promo from each story angle")
+    st.caption("Post these together as an A/B test of which angle sells this show, then cut more promos like the winner.")
+    st.html(ui.slate(slate))
+    for r in slate:
         with st.container(border=True):
             promo_card(r, "first")
 
 with tab_all:
-    n = st.slider("Show top", 5, max(5, len(ranked)), min(15, len(ranked)))
-    for r in ranked[:n]:
-        with st.expander(f"#{r['rank']} · {r['title']} · {r['duration']:.0f} s · score {r['scores']['final']:.1f}"
-                         + (" · ⭐" if r["post_first"] else "")):
+    angles = sorted({r["angle"] for r in ranked})
+    f1, f2, f3 = st.columns([2.4, 1.7, 1], vertical_alignment="bottom")
+    with f1:
+        chosen = st.pills("Story angle", angles, selection_mode="multi", key="f-angle",
+                          format_func=lambda a: f"{ui.icon(a)} {ui.nice(a)}")
+    with f2:
+        src_pick = st.segmented_control("Source", ["All", *SOURCES], default="All", key="f-src")
+    with f3:
+        min_score = st.slider("Minimum score", 0.0, 10.0, 0.0, 0.5, key="f-min")
+    shown = [r for r in ranked
+             if (not chosen or r["angle"] in chosen)
+             and (src_pick in (None, "All") or r["source"] == SOURCES[src_pick])
+             and r["scores"]["final"] >= min_score]
+    show_all = st.toggle(f"Show all {len(shown)} matching promos", value=False) if len(shown) > 20 else True
+    st.caption(f"Showing {len(shown) if show_all else 20} of {len(shown)} matching promos ({len(ranked)} ranked in total)")
+    for r in (shown if show_all else shown[:20]):
+        label = f"#{r['rank']} · {r['title']} · {r['duration']:.0f} s · score {r['scores']['final']:.1f}"
+        with st.expander(label + ("  ·  ⭐ post first" if r.get("post_first") else "")):
             promo_card(r, "all")
 
 with tab_heat:
     if not ss.get("show_path"):
-        st.info("The heat-map needs the screenplays: run from a .zip (or pick a saved run on the machine that has the pack).")
+        st.info("The heat-map needs the screenplays: run from a .zip, or open a saved run on the machine that has the pack.")
     else:
         show = cached_show(ss["show_path"])
-        dark = getattr(getattr(st.context, "theme", None), "type", "light") == "dark"
-        ramp = ["#104281", "#256abf", "#5598e7", "#9ec5f4", "#cde2fb"] if dark else \
-               ["#cde2fb", "#9ec5f4", "#5598e7", "#256abf", "#104281"]
-        outline = "#d95926" if dark else "#eb6834"
+        ramp = (["#13213a", "#1c3a66", "#2f6bb3", "#78aee8", "#d6e7fb"] if THEME == "dark"
+                else ["#cde2fb", "#9ec5f4", "#5598e7", "#256abf", "#104281"])
+        outline = "#ff6b4a" if THEME == "dark" else "#d9480f"
         cells = pd.DataFrame([{"episode": ep.number, "t": i * 2.0, "t2": i * 2.0 + 2.0, "heat": h}
                               for ep in show.episodes for i, h in enumerate(heat_curve(ep, step=2.0))])
         boxes = pd.DataFrame([{"episode": s["episode"], "start": s["start_s"], "end": s["end_s"],
@@ -225,22 +267,34 @@ with tab_heat:
             tooltip=[alt.Tooltip("episode:O", title="Episode"), alt.Tooltip("t:Q", title="Second"),
                      alt.Tooltip("heat:Q", title="Heat", format=".1f")])
         promos = alt.Chart(boxes).mark_rect(fill=None, stroke=outline, strokeWidth=2, cornerRadius=2).encode(
-            x="start:Q", x2="end:Q", y=y,
-            tooltip=[alt.Tooltip("promo:N", title="Promo"), alt.Tooltip("cut:N", title="Cut")])
-        st.markdown("Heat is computed from the script alone (emotion tags, violent or shocking actions, sound "
-                    "cues), with no AI. **Orange outlines** are the top 25 promos' segments.")
+            x="start:Q", x2="end:Q", y=y, tooltip=[alt.Tooltip("promo:N", title="Promo"), alt.Tooltip("cut:N", title="Cut")])
+        st.markdown("#### Where the drama is, episode by episode")
+        st.caption("Heat comes from the script alone (emotion tags, violent or shocking actions, sound cues), "
+                   "with no AI. Outlines mark the top 25 promos’ segments: hover for details.")
         st.altair_chart((heat + promos).properties(height=max(300, 13 * len(show.episodes))), width="stretch")
 
 with tab_table:
     table = pd.DataFrame([{
-        "rank": r["rank"], "post first": r["post_first"], "title": r["title"], "angle": r["angle"],
+        "rank": r["rank"], "post first": bool(r.get("post_first")), "title": r["title"], "angle": ui.nice(r["angle"]),
+        "source": ui.SOURCE_NAME.get(r["source"], r["source"]),
         "segments": " + ".join(f"E{s['episode']:02d} {s['start']}–{s['end']}" for s in r["segments"]),
         "seconds": r["duration"], "hook": r["hook"]["script_line"], "cliffhanger": r["cliffhanger"]["script_line"],
-        "why": r["why_it_works"], "score": r["scores"]["final"], "hook score": r["scores"]["hook"],
-        "cliffhanger score": r["scores"]["cliffhanger"], "clarity": r["scores"]["clarity"],
-        "editor decision": decisions.get(r["id"], "undecided"), "flags": " | ".join(r["flags"]),
+        "why it works": r.get("why_it_works"), "score": r["scores"]["final"], "hook score": r["scores"]["hook"],
+        "cliffhanger score": r["scores"]["cliffhanger"], "editor decision": decisions.get(r["id"]) or "",
+        "flags": " | ".join(r["flags"]),
     } for r in ranked])
-    st.dataframe(table, width="stretch", hide_index=True)
+    st.dataframe(table, hide_index=True, width="stretch", height=520, column_config={
+        "score": st.column_config.ProgressColumn("score", min_value=0, max_value=10, format="%.1f"),
+        "hook score": st.column_config.ProgressColumn("hook", min_value=0, max_value=10, format="%.1f"),
+        "cliffhanger score": st.column_config.ProgressColumn("cliffhanger", min_value=0, max_value=10, format="%.1f"),
+        "seconds": st.column_config.NumberColumn("seconds", format="%.1f s"),
+        "post first": st.column_config.CheckboxColumn("⭐"),
+    })
     c1, c2 = st.columns(2)
-    c1.download_button("Download promos.csv (with editor decisions)", table.to_csv(index=False), "promos.csv", "text/csv")
-    c2.download_button("Download promos.json", json.dumps(records, indent=1, ensure_ascii=False), "promos.json", "application/json")
+    c1.download_button("⬇️  promos.csv (with your decisions)", table.to_csv(index=False), "promos.csv", "text/csv",
+                       width="stretch")
+    c2.download_button("⬇️  promos.json (everything)", json.dumps(records, indent=1, ensure_ascii=False), "promos.json",
+                       "application/json", width="stretch")
+
+with tab_how:
+    st.html(ui.landing())

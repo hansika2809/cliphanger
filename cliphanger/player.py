@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-_TEMPLATE = r"""
+_TEMPLATE = r"""<meta charset="utf-8">
 <div id="root"></div>
 <style>
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }

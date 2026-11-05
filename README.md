@@ -6,6 +6,23 @@ someone who has never seen the show. For each one you get the exact segment time
 order), the hook, the cliffhanger, why it works, and a **Script Player** that plays it as a timed
 read-along before anyone opens an editing timeline.
 
+![ClipHanger's review app](docs/app-landing.png)
+
+## The review app
+
+`streamlit run app.py` opens a dark "screening room" for promo editors:
+
+- **⭐ Post first:** the best promo of each story angle, shown as poster cards. Post them together as an
+  A/B test of which angle sells the show.
+- **Promo cards:** a phone-shaped **Script Player** plays the promo as a timed read-along (3-second hook
+  mark, cut marks, a ✂ CUT card on the cliffhanger). Next to it are the segments, hook, cliffhanger,
+  why it works, the judges' scores and the cold viewer's read, with 👍 / 🤔 / 👎 editor decisions.
+- **🎞️ All promos:** filter by story angle, source (LLM picks, cross-episode trailers, episode endings)
+  and minimum score.
+- **🔥 Drama heat-map:** code-only drama intensity across every episode, with the top promos outlined.
+- **📋 Table & export:** a sortable table and `promos.csv` / `promos.json` downloads that include your decisions.
+- Open a saved run directly with `?run=<folder in outputs/>`, or load any `promos.json`.
+
 ## How it works
 
 ```
@@ -39,7 +56,8 @@ cp .env.example .env            # paste a free key from https://aistudio.google.
 .venv/bin/python -m cliphanger run --input "path/to/show-scripts.zip"
 
 # the review app (upload a zip, play promos, approve/reject, export)
-.venv/bin/streamlit run app.py
+.venv/bin/streamlit run app.py               # then open http://localhost:8501/?run=<a run folder>
+
 ```
 
 A first run on 50 episodes needs ~114 requests: 12 to the generator model (10 mining batches, stitch
