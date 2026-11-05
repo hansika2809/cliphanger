@@ -133,8 +133,11 @@ if go:
     out = ROOT / "outputs" / f"run_app_{time.strftime('%Y%m%d_%H%M%S')}"
     with st.status("Finding promos… a 50-episode show takes 10–20 minutes on free tiers", expanded=True) as status:
         try:
-            pipeline.run(src, out, cfg, generator=gen, judge_model=jud, episodes=episode_list(eps),
-                         stitch_n=trailers, progress=status.write)
+            # unchanged model boxes keep config.yaml's fallback chains; an edit replaces the chain
+            pipeline.run(src, out, cfg,
+                         generator=None if gen.strip() == cfg["model"]["generator"] else gen.strip(),
+                         judge_model=None if jud.strip() == cfg["model"]["judge"] else jud.strip(),
+                         episodes=episode_list(eps), stitch_n=trailers, progress=status.write)
         except LLMError as err:
             status.update(label="The model provider refused or failed", state="error")
             st.error(f"{err}\n\nCheck the API key and the provider's quota, or switch models in Model settings.")

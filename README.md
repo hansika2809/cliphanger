@@ -6,7 +6,7 @@ someone who has never seen the show. For each one you get the exact segment time
 order), the hook, the cliffhanger, why it works, and a **Script Player** that plays it as a timed
 read-along before anyone opens an editing timeline.
 
-![ClipHanger's review app](docs/app-landing.png)
+![ClipHanger's results for the demo show](docs/app-results.png)
 
 ## The review app
 
@@ -22,6 +22,19 @@ read-along before anyone opens an editing timeline.
 - **🔥 Drama heat-map:** code-only drama intensity across every episode, with the top promos outlined.
 - **📋 Table & export:** a sortable table and `promos.csv` / `promos.json` downloads that include your decisions.
 - Open a saved run directly with `?run=<folder in outputs/>`, or load any `promos.json`.
+
+![A promo card: the Script Player mid-playback, judge scores, a flag and the editor decision](docs/app-script-player.png)
+
+## Try it on the demo show
+
+`samples/demo_show.zip` is **"The Night Cleaner Owns the Tower"**: an original 4-episode microdrama
+written to test ClipHanger. It contains no real show content and uses the same screenplay format.
+
+```bash
+.venv/bin/python -m cliphanger run --input samples/demo_show.zip   # ~3 min on Gemini's free tier
+```
+
+You can also upload the zip in the app. The screenshots above are from this demo.
 
 ## How it works
 

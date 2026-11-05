@@ -17,6 +17,16 @@ from .stitch import stitch
 from .validate import RE_ID, validate
 
 
+def select_episodes(show, wanted: list[int] | None) -> tuple[list[int], list[int]]:
+    """Requested episodes that exist in the show (all of them if none requested or none match)."""
+    present = [ep.number for ep in show.episodes]
+    if not wanted:
+        return present, []
+    eps = [n for n in wanted if n in set(present)]
+    skipped = [n for n in wanted if n not in set(present)]
+    return (eps or present), skipped
+
+
 def _first_episode(idea: dict) -> int:
     m = RE_ID.match(str(idea["segments"][0]["start"]).strip()) if idea.get("segments") else None
     return int(m.group(1)) if m and m.group(1) else 1
@@ -27,12 +37,13 @@ def run(input_path: str | Path, out_dir: str | Path, cfg: dict, generator: str |
         stitch_n: int = 5, progress: Callable[[str], None] = lambda m: print(m, flush=True)) -> list[dict]:
     t0 = time.time()
     show = load_show(input_path, title=title)
-    eps = episodes or [ep.number for ep in show.episodes]
+    eps, skipped = select_episodes(show, episodes)
     log: list[dict] = []
     gen = make_llm(cfg, "generator", generator, log)
     jud = make_llm(cfg, "judge", judge_model, log)
     progress(f"1/5 Parsed {len(show.episodes)} episodes of “{show.title}”"
-             + (f" ({len(show.warnings)} warnings)" if show.warnings else ""))
+             + (f" ({len(show.warnings)} warnings)" if show.warnings else "")
+             + (f"; skipped episodes not in this show: {skipped}" if skipped else ""))
 
     ideas = mine(show, gen, eps, per_call=cfg["budget"]["episodes_per_call"])
     ideas_json = [e.model_dump() for e in ideas]
@@ -66,7 +77,11 @@ def run(input_path: str | Path, out_dir: str | Path, cfg: dict, generator: str |
     status = Counter(c.status for c in candidates)
     live = [c for c in log if not c["cached"]]
     meta = {
-        "show": show.title, "episodes": len(eps), "generator": gen.chain[0], "judge": jud.chain[0],
+        # name the models that actually answered (a fallback may have stood in for the first choice)
+        "show": show.title, "episodes": len(eps),
+        "generator": " + ".join(sorted({c["model"] for c in log if c["tag"].startswith(("mine", "stitch"))}))
+                     or gen.chain[0],
+        "judge": " + ".join(sorted({c["model"] for c in log if c["tag"].startswith("judge")})) or jud.chain[0],
         "finished": time.strftime("%Y-%m-%d %H:%M"), "seconds": round(time.time() - t0, 1),
         "counts": {"ideas": len(candidates), "ok": status["ok"], "repaired": status["repaired"],
                    "rejected": status["rejected"], "duplicates": sum(1 for r in ranked if r.duplicate_of)},

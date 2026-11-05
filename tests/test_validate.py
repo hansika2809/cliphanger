@@ -87,6 +87,13 @@ def test_normalize_id():
     assert normalize_id("E12-B005", 7) == "E12-B005"
 
 
+def test_episode_range_beyond_the_show_is_trimmed_not_a_crash():
+    from cliphanger.pipeline import select_episodes
+    assert select_episodes(SHOW, None) == ([1], [])
+    assert select_episodes(SHOW, [1, 2, 3]) == ([1], [2, 3])
+    assert select_episodes(SHOW, [9]) == ([1], [9])          # nothing matches → whole show
+
+
 def test_judge_rounds_are_averaged_and_disagreement_kept():
     from cliphanger.judge import Verdict, combine
     v = combine([Verdict(hook=8, clarity=9, cliffhanger=6, resolved=False, comprehension=2, understood="a"),
