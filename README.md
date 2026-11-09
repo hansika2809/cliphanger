@@ -126,14 +126,6 @@ script) · `candidates_all.json` (incl. rejected ideas and why) · `raw_llm_repl
 .venv/bin/python -m pytest -q    # synthetic fixtures; the real-pack test runs only if the pack is present
 ```
 
-## Who did what
-
-| Hansika Gupta (human) | AI |
-|---|---|
-| **Chose the problem and the process:** picked Problem 1 and had it built plan-first, then step by step with a review checkpoint after each stage | **Claude Code (Claude Opus 5.5)** proposed the plan and design, wrote the code, prompts and tests, ran the experiments and evaluation, and drafted the solution doc and this README |
-| **Set the quality bar** (a creative, shortlist-worthy solution, not a minimal one) and **made the delivery decisions**: GitHub account, submission format, what the doc must and must not include | **Gemini models** do the judgement inside the pipeline: finding promos and judging them as simulated viewers |
-| **Steered revisions** to the solution doc's readability and layout, the app's UI and this repo; set up the API key and published the code | Every number in the docs comes from logged runs, so each claim can be checked against the raw outputs |
-
 ## Models used
 
 | Where | Model | Role |
